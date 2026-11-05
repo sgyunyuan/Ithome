@@ -22,8 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    env:
-      ITHOME_USERHASH: ${{ secrets.ITHOME_USERHASH }}
+    
+     env:
+  # ITHOME_USERHASH: ${{ secrets.ITHOME_USERHASH }}   # ← 注释掉这行
+  ITHOME_PUSH: "1"
       ITHOME_PUSH: ${{ secrets.ITHOME_PUSH || '1' }}
       ITHOME_PUSH_URL: ${{ secrets.ITHOME_PUSH_URL }}
       DEBUG: ${{ inputs.debug || 'false' }}

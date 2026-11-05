@@ -16,8 +16,6 @@ jobs:
       ITHOME_USERHASH: ${{ secrets.ITHOME_USERHASH }}
       USERNAME: ${{ secrets.USERNAME }}
       PASSWORD: ${{ secrets.PASSWORD }}
-      ITHOME_PUSH: "1"
-      ITHOME_PUSH_URL: "https://api.chuckfang.com/shangguan/"
 
     steps:
       - uses: actions/checkout@v4
@@ -31,3 +29,11 @@ jobs:
 
       - name: 执行签到
         run: python ithome_sign.py
+
+  # ========== 保活 ==========
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: github.event_name == 'schedule'
+    steps:
+      - run: echo "keepalive at $(date -u '+%Y-%m-%d %H:%M:%S') UTC"

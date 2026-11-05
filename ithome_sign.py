@@ -1,4 +1,8 @@
 # encoding: utf-8
+"""
+IT之家签到 - 仅拉普兰 (type=1)
+已移除推送模块，仅保留签到核心逻辑
+"""
 import binascii
 import json
 import logging
@@ -11,13 +15,13 @@ from pyDes import des, ECB
 
 requests.packages.urllib3.disable_warnings()
 
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("ithome")
+
 
 class Config:
     BASE = "https://my.ruanmei.com"
@@ -27,8 +31,6 @@ class Config:
         "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 "
         "Chrome/81.0.4044.138 Mobile Safari/537.36 ithome/rmsdklevel2/night/7.26"
     )
-    PUSH_URL = os.environ.get("ITHOME_PUSH_URL", "https://api.chuckfang.com/shangguan/")
-    PUSH_ENABLE = os.environ.get("ITHOME_PUSH", "1") == "1"
 
 
 class DesUtil:
@@ -110,26 +112,14 @@ class Signer:
         m = __import__("re").search(r"user=hash=([a-zA-Z0-9]+)", cookie)
         if not m:
             raise RuntimeError("登录失败，账号或密码错误")
+        logger.info("登录成功，userHash: %s...", m.group(1)[:16])
         return cls(m.group(1))
 
-    def do_sign(self, t: int = 1):
+    def do_sign(self, t: int = 1) -> dict:
         url = f"{Config.BASE}/api/usersign/sign?userHash={self.hash}&type={t}{SignMaker.make()}"
         r = self.s.get(url, timeout=15)
+        r.raise_for_status()
         return r.json()
-
-
-def push(title, content):
-    if not Config.PUSH_ENABLE:
-        return
-    try:
-        requests.post(
-            Config.PUSH_URL,
-            json={"title": title, "content": content},
-            timeout=10,
-        )
-        logger.info("推送已发送")
-    except Exception as e:
-        logger.warning("推送失败: %s", e)
 
 
 def main():
@@ -137,32 +127,36 @@ def main():
     user = os.environ.get("USERNAME", "").strip()
     pwd = os.environ.get("PASSWORD", "").strip()
 
-    if not user_hash:
-        if not (user and pwd):
-            raise SystemExit("❌ 没配 ITHOME_USERHASH，也没配 USERNAME/PASSWORD")
-        logger.info("使用账号密码登录")
-        signer = Signer.login(user, pwd)
-    else:
-        logger.info("使用 USERHASH 登录")
-        signer = Signer(user_hash)
+    # 凭证检查
+    if not user_hash and not (user and pwd):
+        logger.error("❌ 未配置凭证：请设置 ITHOME_USERHASH 或 USERNAME+PASSWORD")
+        raise SystemExit(1)
 
+    # 初始化签到器
+    if user_hash:
+        logger.info("使用 USERHASH 签到")
+        signer = Signer(user_hash)
+    else:
+        logger.info("使用账号密码登录: %s", user)
+        signer = Signer.login(user, pwd)
+
+    # 执行签到（仅拉普兰 type=1）
+    logger.info("开始签到...")
     try:
         res = signer.do_sign(1)
-        ok = "失败" not in res.get("msg", "")
-        msg = res.get("msg", json.dumps(res, ensure_ascii=False))
-    except Exception as e:
-        ok = False
-        msg = f"异常: {e}"
+        msg = res.get("msg", "")
+        ok = "失败" not in msg
 
-    title = "IT之家签到 · 拉普兰 " + ("✅成功" if ok else "❌失败")
-    content = (
-        f"🕒 {datetime.now():%Y-%m-%d %H:%M:%S}\n"
-        f"状态: {title}\n"
-        f"返回: {msg}"
-    )
-    logger.info(content)
-    push(title, content)
-    if not ok:
+        if ok:
+            logger.info("✅ 拉普兰签到成功 | %s", msg)
+        else:
+            logger.warning("❌ 拉普兰签到失败 | %s", msg)
+
+        if not ok:
+            raise SystemExit(1)
+
+    except Exception as e:
+        logger.exception("签到异常")
         raise SystemExit(1)
 
 

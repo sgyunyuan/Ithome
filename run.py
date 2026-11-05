@@ -1,45 +1,21 @@
-# encoding:utf-8
-"""
-@author:zixing
-@email:zixing131@qq.com
-@date:2018-08-28 11:37
-#2020-03-08 添加云日历windows客户端签到
-#2026-11-05 添加 shangguan 推送签到结果
-"""
-
+import json
 import binascii
-import os
-import time
-import urllib.request
-import urllib.parse
-from datetime import datetime
-
+import re
 import requests
+import time
+from os import environ as ENV
+from datetime import datetime
 from pyDes import des, ECB
 
-# ══════════════════ 配置 ══════════════════
-
-# 秘钥
-KEY = "+f/1+hfh"
-
-# shangguan 推送接口
-PUSH_URL = "https://api.chuckfang.com/shangguan/"
-
-# 签到用户 hash：优先读环境变量 ITHOME_USERHASH，否则用占位值
-USERHASH = os.environ.get("ITHOME_USERHASH", "sign")
-
-# 是否推送：设 ITHOME_PUSH=0 可关闭推送（默认开）
-PUSH_ENABLED = os.environ.get("ITHOME_PUSH", "1").strip() != "0"
-
-# 接口超时（秒）
-REQUEST_TIMEOUT = 20
+requests.packages.urllib3.disable_warnings()
 
 
-# ══════════════════ DES 加解密 ══════════════════
-
-def make_up_data(data: str, mode: str = "PAD_ZERO"):
+# 项目链连接：https://github.com/daimiaopeng/IthomeQianDao
+# 使用说明：安装python3，再在cmd里输入pip install requests 然后改动下面数据就可以了日志文件保存
+# 在同目录下的log.txt
+def make_up_data(data: str, mode="PAD_ZERO"):
     pad = 8 - len(data) % 8
-    pad_str = ''
+    pad_str = ""
     if mode == "PAD_PKCS5":
         for _ in range(pad):
             pad_str += chr(pad)
@@ -49,18 +25,12 @@ def make_up_data(data: str, mode: str = "PAD_ZERO"):
     return data + pad_str
 
 
-def des_encrypt(s: str):
-    """DES 加密，返回 16 进制字符串"""
-    s = make_up_data(s)
-    secret_key = KEY
-    iv = secret_key
-    k = des(secret_key, ECB, iv, pad=None)
-    en = k.encrypt(s)
-    return binascii.b2a_hex(en)
-
-
 def des_encrypt2(s: str, key: str):
-    """DES 加密（指定 key），返回 str"""
+    """
+    DES 加密
+    :param s: 原始字符串
+    :return: 加密后字符串，16进制
+    """
     s = make_up_data(s)
     secret_key = key
     iv = secret_key
@@ -68,17 +38,6 @@ def des_encrypt2(s: str, key: str):
     en = k.encrypt(s)
     return binascii.b2a_hex(en).decode()
 
-
-def des_descrypt(s: str) -> str:
-    """DES 解密"""
-    secret_key = KEY
-    iv = secret_key
-    k = des(secret_key, ECB, iv, pad=None)
-    de = k.decrypt(binascii.a2b_hex(s))
-    return de
-
-
-# ══════════════════ 时间 / 工具 ══════════════════
 
 def cn(x: bytes):
     return x.decode("u8")
@@ -110,12 +69,10 @@ def parseInt(data: float):
     return int(data)
 
 
-# ══════════════════ 签名参数生成 ══════════════════
-
 def geKK(_0x249526: datetime, _0x2fce26: int):
     _0x17c13c = "hd7%b4f8p9)*fd4h5l6|)123/*-+!#$@%^*()_+?>?njidfds[]rfbcvnb3rz/ird|opqqyh487874515/%90hggigadfihklhkopjj`b3hsdfdsf84215456fi15451%q(#@Fzd795hn^Ccl$vK^L%#w$^yr%ETvX#0TaPSRm5)OeG)^fQnn6^%^UTtJI#3EZ@p6^Rf$^!O$(jnkOiBjn3#inhOQQ!aTX8R)9O%#o3zCVxo3tLyVorwYwA^$%^b9Yy$opSEAOOlFBsS^5d^HoF%tJ$dx%3)^q^c^$al%b4I)QHq^#^AlcK^KZFYf81#bL$n@$%j^H(%m^"
-    _0x5c548d = getTime(_0x249526)
-    _0x5c59ee = getDate(_0x249526)
+    _0x5c548d = getTime(_0x249526)  # 时间戳
+    _0x5c59ee = getDate(_0x249526)  # 当月第几日
     _0x5c548d = round(_0x5c548d / 0xC350) * _0x5c59ee * 0x3
     if _0x2fce26 == 3:
         return (
@@ -140,8 +97,8 @@ def geKK(_0x249526: datetime, _0x2fce26: int):
 
 def geKK2(_0x249526: int, _0x2fce26: int):
     _0x17c13c = "hd7%b4f8p9)*fd4h5l6|)123/*-+!#$@%^*()_+?>?njidfds[]rfbcvnb3rz/ird|opqqyh487874515/%90hggigadfihklhkopjj`b3hsdfdsf84215456fi15451%q(#@Fzd795hn^Ccl$vK^L%#w$^yr%ETvX#0TaPSRm5)OeG)^fQnn6^%^UTtJI#3EZ@p6^Rf$^!O$(jnkOiBjn3#inhOQQ!aTX8R)9O%#o3zCVxo3tLyVorwYwA^$%^b9Yy$opSEAOOlFBsS^5d^HoF%tJ$dx%3)^q^c^$al%b4I)QHq^#^AlcK^KZFYf81#bL$n@$%j^H(%m^"
-    _0x5c548d = _0x249526
-    _0x5c59ee = getDate2(_0x249526)
+    _0x5c548d = _0x249526  # 时间戳
+    _0x5c59ee = getDate2(_0x249526)  # 当月第几日
     _0x5c548d = round(_0x5c548d / 0xC350) * _0x5c59ee * 0x3
     if _0x2fce26 == 3:
         return (
@@ -165,7 +122,7 @@ def geKK2(_0x249526: int, _0x2fce26: int):
 
 
 def gneKK(_0x4060f6: datetime):
-    return 'k' + des_encrypt2(geKK(_0x4060f6, 3), geKK(_0x4060f6, 8))
+    return "k" + des_encrypt2(geKK(_0x4060f6, 3), geKK(_0x4060f6, 8))
 
 
 def geKsK(_0x101b3e: datetime):
@@ -173,7 +130,7 @@ def geKsK(_0x101b3e: datetime):
 
 
 def gneKK2(_0x4060f6: int):
-    return 'k' + des_encrypt2(geKK2(_0x4060f6, 3), geKK2(_0x4060f6, 8))
+    return "k" + des_encrypt2(geKK2(_0x4060f6, 3), geKK2(_0x4060f6, 8))
 
 
 def geKsK2(_0x101b3e: float):
@@ -183,169 +140,98 @@ def geKsK2(_0x101b3e: float):
     )
 
 
-# ══════════════════ IT之家签到 ══════════════════
-
-class ITHomeSign:
-    def __init__(self, userhash: str):
-        self.urlhead = "http://my.ruanmei.com/"
-        self.userhash = userhash
-        self.UA = (
-            "Mozilla/5.0 (Linux; Android 10; Redmi K30 5G Build/QKQ1.191222.002; wv) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/83.0.4103.101 "
-            "Mobile Safari/537.36 ithome/rmsdklevel2/day/7.37"
-        )
-
-    def getSign(self):
-        now = int(time.time() * 1000)
-        return "&timestamp=" + str(now) + "&" + gneKK2(now) + "=" + geKsK2(now)
-
-    def sign(self):
-        headers = {
-            "Referer": "https://my.ruanmei.com/app/user/signin.html?hidemenu=1&appver=2"
-        }
-        url = (
-            self.urlhead
-            + "api/usersign/sign?userHash="
-            + self.userhash
-            + "&type=0"
-            + self.getSign()
-        )
-        result = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        return result.content
-
-    def signlapin(self):
-        url = (
-            self.urlhead
-            + "/api/usersign/sign?userHash="
-            + self.userhash
-            + "&type=1&platform=lapinapp_android&channel=official"
-            + self.getSign()
-        )
-        headers = {
-            "Referer": "https://my.ruanmei.com/app/user/signin.html?hidemenu=1&appver=2"
-        }
-        result = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        return result.content
-
-    def signyunrili(self):
-        url = (
-            self.urlhead
-            + "api/usersign/yunrilisign?userHash="
-            + self.userhash
-            + "&coinHistoryType=160&appver=3.03&platform=windows"
-            + self.getSign()
-        )
-        headers = {
-            "Referer": "https://my.ruanmei.com/app/user/signin.html?hidemenu=1&appver=2"
-        }
-        result = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        return result.content
-
-    def signyunriliAndroid(self):
-        url = (
-            self.urlhead
-            + "api/usersign/yunrilisign?userHash="
-            + self.userhash
-            + "&coinHistoryType=159"
-            + self.getSign()
-        )
-        headers = {
-            "Referer": "https://my.ruanmei.com/app/user/signinyunrili.html?from=mytime_android"
-        }
-        result = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        return result.content
+def getSign():
+    now = int(time.time() * 1000)
+    return "&timestamp=" + str(now) + "&" + gneKK2(now) + "=" + geKsK2(now)
 
 
-# ══════════════════ 推送 ══════════════════
-
-def push_sign_result(title: str, msg: str) -> bool:
-    """推送签到结果到 shangguan 接口（失败不影响主流程）"""
-    if not PUSH_ENABLED:
-        print("[推送] 已通过 ITHOME_PUSH=0 关闭")
-        return False
-
-    form = urllib.parse.urlencode({"title": title, "msg": msg}).encode("utf-8")
-    req = urllib.request.Request(
-        PUSH_URL,
-        data=form,
-        headers={
-            "User-Agent": "ithome-sign/1.1",
-            "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-        },
-        method="POST",
-    )
+def getUserHash(username: str, password: str):
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            print(f"[推送] HTTP {resp.status}: {body[:200]}")
-            return 200 <= resp.status < 300
+        url_login = "https://my.ruanmei.com/Default.aspx/LoginUser"
+        data = {"mail": username, "psw": password, "rememberme": "true"}
+        header = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Accept-Encoding": "gzip, deflate",
+            "Content-Type": "application/json; charset=UTF-8",
+            "Host": "my.ruanmei.com",
+            "Origin": "http://my.ruanmei.com",
+            "Referer": "http://my.ruanmei.com/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        response = requests.post(
+            url=url_login, data=json.dumps(data), headers=header
+        ).headers["Set-Cookie"]
+        return re.search(r"user=hash=[a-zA-Z0-9]+", response).group()[10:]
     except Exception as e:
-        print(f"[推送] 失败: {e}")
-        return False
+        raise ExceptionGroup("可能密码错误", [e])
 
 
-def build_summary(results):
-    """
-    results: [(名称, 响应文本), ...]
-    返回 (title, msg, all_success)
-    """
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def signWithHash(user_hash: str):
+    qiandaocode = [
+        0,
+        # 1,
+        # 2,
+        # 3,
+        # 256,
+        # 257,
+        # 258,
+        # 259,
+        # 512,
+        # 513,
+        # 514,
+        # 515,
+        # 768,
+        # 769,
+        # 770,
+        # 771
+    ]
+    endt = getSign()
+    session = requests.session()
+    session.verify = False
+    session.headers = {
+        "user-agent": "Mozilla/5.0 (Linux; Android 9; MI 6 Build/PKQ1.190118.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/81.0.4044.138 Mobile Safari/537.36 ithome/rmsdklevel2/night/7.26",
+        "content-type": "application/x-www-form-urlencoded",
+        "accept": "*/*",
+        "x-requested-with": "com.ruanmei.ithome",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "https://my.ruanmei.com/app/user/signin.html?hidemenu=1&appver=2",
+    }
+    error: list[Exception] = []
+    for fuck in qiandaocode:
+        try:
+            url_qiandao = f"https://my.ruanmei.com/api/usersign/sign?userHash={user_hash}&type={fuck}&endt={endt}"
+            qiandao = session.get(url=url_qiandao).json()
+            print(f"签到 (type {fuck})：{qiandao}")
+            if "msg" in qiandao:
+                msg: str = qiandao["msg"]
+                if msg.find("失败") != -1:
+                    error.append(Exception(qiandao))
+            elif "ok" not in qiandao:
+                error.append(Exception("签到失败，可能是 UserHash 错误"))
+        except Exception as e:
+            error.append(e)
+    return error
 
-    ok_list, fail_list, lines = [], [], []
-    for name, text in results:
-        cleaned = (text or "").replace("\n", " ").strip()
-        if "失败" in cleaned:
-            fail_list.append(name)
-            lines.append(f"❌ 【{name}】{cleaned[:120]}")
-        else:
-            ok_list.append(name)
-            lines.append(f"✅ 【{name}】{cleaned[:120]}")
-
-    total = len(results)
-    all_success = len(fail_list) == 0
-
-    if all_success:
-        title = "✅ IT之家 签到全部成功"
-        head = f"时间：{now}\n状态：{len(ok_list)}/{total} 全部成功"
-    else:
-        title = f"⚠️ IT之家 签到部分失败（{len(fail_list)}/{total}）"
-        head = (
-            f"时间：{now}\n"
-            f"成功：{len(ok_list)}/{total} → {'、'.join(ok_list) or '无'}\n"
-            f"失败：{len(fail_list)}/{total} → {'、'.join(fail_list)}"
-        )
-
-    msg = head + "\n" + "=" * 30 + "\n" + "\n".join(lines)
-    return title, msg, all_success
-
-
-# ══════════════════ 入口 ══════════════════
 
 if __name__ == "__main__":
-    print("Start IThome sign.")
-    print(f"[配置] USERHASH={'已配置' if USERHASH and USERHASH != 'sign' else '未配置(占位)'}")
-    print(f"[配置] PUSH_ENABLED={PUSH_ENABLED}")
-
-    ithome = ITHomeSign(USERHASH)
-    results = []
-
-    def run(name, func):
-        try:
-            text = cn(func())
-        except Exception as e:
-            text = f"请求异常：{e}"
-        print(text)
-        results.append((name, text))
-        return text
-
-    sign_text = run("普通签到", ithome.sign)
-    run("lapin签到", ithome.signlapin)
-    run("云日历Windows", ithome.signyunrili)
-    run("云日历Android", ithome.signyunriliAndroid)
-
-    title, msg, all_success = build_summary(results)
-    push_sign_result(title, msg)
-
-    print("签到全部成功" if all_success else "签到存在失败项")
-    # 退出码永远 0：单次接口失败不应让 GitHub Actions 标红
-    raise SystemExit(0)
+    if "USERHASH" in ENV and ENV["USERHASH"]:
+        print("通过 UserHash 签到")
+        error = signWithHash(ENV["USERHASH"])
+        if len(error):
+            raise ExceptionGroup("签到失败", error)
+        else:
+            print("签到成功")
+    elif "USERNAME" in ENV and "PASSWORD" in ENV:
+        print(f"登录 {ENV["USERNAME"]}")
+        user_hash = getUserHash(ENV["USERNAME"], ENV["PASSWORD"])
+        print("登录成功，开始签到")
+        error = signWithHash(user_hash)
+        if len(error):
+            raise ExceptionGroup("签到失败", error)
+        else:
+            print("签到成功")
+    else:
+        raise Exception("请配置环境变量 USERNAME 与 PASSWORD，或 USERHASH")
